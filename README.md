@@ -1,6 +1,6 @@
 # hydrolix-collector
 
-Minimal, production-ready CDN Metrics Collector using Cobra.
+Minimal, production-ready metrics collector.
 
 ## Quickstart
 
