@@ -1,0 +1,10 @@
+# Ignore vim files:
+*~
+*.swp
+*.swo
+*.no
+
+# Ignore env files:
+*.env
+
+bin*
