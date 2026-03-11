@@ -1,11 +1,5 @@
 package hydrolix
 
-import "fmt"
-
-var (
-	minuteStart = 11
-	minuteEnd   = 1
-)
 
 const SQLDescribe = `
 DESCRIBE akamai.edge_origin_performance_1minute;
@@ -83,7 +77,6 @@ ORDER BY time ASC, hostname ASC, status_class ASC, cache_status ASC, cacheabilit
 FORMAT JSON;
 `
 
-var FormattedSQLAkamaiEdgeRequests = fmt.Sprintf(SQLAkamaiEdgeRequests, minuteStart, minuteEnd)
 
 // EdgeRequestResponse is the top-level envelope.
 type AkamaiEdgeQuantilesResponse struct {
@@ -132,8 +125,6 @@ ORDER BY time ASC, hostname ASC, status_class ASC, cache_status ASC
 FORMAT JSON;
 `
 
-var FormattedSQLAkamaiQuantiles = fmt.Sprintf(SQLAkamaiQuantiles, minuteStart, minuteEnd)
-
 // AkamaiErrorsResponse is the top-level envelope.
 type AkamaiErrorsResponse struct {
 	Meta       []FieldMeta       `json:"meta"`
@@ -172,4 +163,3 @@ ORDER BY time ASC, hostname ASC, status_class ASC, status_code ASC, cache_status
 FORMAT JSON;
 `
 
-var FormattedSQLAkamaiErrors = fmt.Sprintf(SQLAkamaiErrors, minuteStart, minuteEnd)

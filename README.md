@@ -24,6 +24,8 @@ Flags:
   -h, --help                           help for hydrolix-collector
   -i, --interval int32                 polling interval in seconds for the exporter, how frequently the exporter polls (default 15)
   -n, --namespace string               override metric namespace, default uses command
+      --offset-end-minutes int         lag offset in minutes for the query window end (default 1)
+      --offset-start-minutes int       how many minutes back the query window starts (default 6)
   -S, --sink strings                   metrics sinks to enable, options: datadog, prometheus, otel
   -B, --sink-datadog-backoff int       [DataDog Sink] initial backoff time for retries (default 1)
   -b, --sink-datadog-batch-size int    [DataDog Sink] size of batch of custom metrics for a payload (default 200)
