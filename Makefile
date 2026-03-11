@@ -17,18 +17,12 @@ endif
 
 LDFLAGS := -s -w -X '$(PACKAGE)/internal/build.Version=$(VERSION)' -X '$(PACKAGE)/internal/build.Commit=$(GIT_COMMIT)' -X '$(PACKAGE)/internal/build.Date=$(DATE)'
 
-.PHONY: all prepare build run test fmt vet lint clean version build-docker
+.PHONY: all prepare build run test fmt vet lint clean version docker-up
 
 all: version prepare build
 
 prepare:
 	go mod tidy
-
-build:
-	go build -ldflags "$(LDFLAGS)" -o bin/$(BINARY) .
-
-run:
-	go run -ldflags "$(LDFLAGS)" .
 
 test:
 	go test ./...
@@ -41,5 +35,14 @@ vet:
 
 lint: vet
 
+build: lint fmt test
+	go build -ldflags "$(LDFLAGS)" -o bin/$(BINARY) .
+
+run:
+	go run -ldflags "$(LDFLAGS)" .
+
 clean:
 	rm -rf bin
+
+docker-up:
+	docker compose up

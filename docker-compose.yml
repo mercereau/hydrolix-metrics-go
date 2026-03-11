@@ -2,13 +2,12 @@ services:
   hydrolix-collector:
     build: .
     command:
+      - ./hydrolix-collector
       - --sink=prometheus
       - --environment=dev
     environment:
       HDX_HOST: ${HDX_HOST}
       HDX_TOKEN: ${HDX_TOKEN:-}
-      HDX_USERNAME: ${HDX_USERNAME:-}
-      HDX_PASSWORD: ${HDX_PASSWORD:-}
     ports:
       - "2112:2112"
     restart: unless-stopped
