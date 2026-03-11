@@ -1,12 +1,10 @@
-# hydrolix-collector
+# hydrolix-metrics-go
 
-Minimal, production-ready metrics collector.
+A minimal, production-ready application for collecting data from Hydrolix and exporting to various time-series metric sinks.
 
 ## Quickstart
 
 ```bash
-CLI for collecting metrics from Hydrolix and exporting them to various metric sinks.
-
 Usage:
   hydrolix-collector [flags]
   hydrolix-collector [command]
@@ -69,7 +67,7 @@ make docker-build
 make docker-run
 ```
 
-## Docker Compose
+## Playground - Docker Compose
 
 Spins up the collector (prometheus sink) + Prometheus + Grafana:
 
