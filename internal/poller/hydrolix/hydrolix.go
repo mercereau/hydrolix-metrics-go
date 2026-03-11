@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"gitlab-master.nvidia.com/it/sre/cdn/observability/hydrolix-collector/internal/common"
-	"gitlab-master.nvidia.com/it/sre/cdn/observability/hydrolix-collector/internal/sinks"
+	"github.com/mercereau/hydrolix-metrics-go/internal/common"
+	"github.com/mercereau/hydrolix-metrics-go/internal/sinks"
 )
 
 type Client struct {

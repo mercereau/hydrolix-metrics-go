@@ -1,4 +1,4 @@
-module gitlab-master.nvidia.com/it/sre/cdn/observability/hydrolix-collector
+module github.com/mercereau/hydrolix-metrics-go
 
 go 1.25.1
 

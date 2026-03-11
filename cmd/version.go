@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"gitlab-master.nvidia.com/it/sre/cdn/observability/hydrolix-collector/internal/build"
+	"github.com/mercereau/hydrolix-metrics-go/internal/build"
 )
 
 func init() {

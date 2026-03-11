@@ -11,13 +11,13 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"gitlab-master.nvidia.com/it/sre/cdn/observability/hydrolix-collector/internal/common"
-	"gitlab-master.nvidia.com/it/sre/cdn/observability/hydrolix-collector/internal/logger"
-	"gitlab-master.nvidia.com/it/sre/cdn/observability/hydrolix-collector/internal/poller/hydrolix"
-	"gitlab-master.nvidia.com/it/sre/cdn/observability/hydrolix-collector/internal/sinks"
-	"gitlab-master.nvidia.com/it/sre/cdn/observability/hydrolix-collector/internal/sinks/datadog"
-	"gitlab-master.nvidia.com/it/sre/cdn/observability/hydrolix-collector/internal/sinks/otel"
-	"gitlab-master.nvidia.com/it/sre/cdn/observability/hydrolix-collector/internal/sinks/prometheus"
+	"github.com/mercereau/hydrolix-metrics-go/internal/common"
+	"github.com/mercereau/hydrolix-metrics-go/internal/logger"
+	"github.com/mercereau/hydrolix-metrics-go/internal/poller/hydrolix"
+	"github.com/mercereau/hydrolix-metrics-go/internal/sinks"
+	"github.com/mercereau/hydrolix-metrics-go/internal/sinks/datadog"
+	"github.com/mercereau/hydrolix-metrics-go/internal/sinks/otel"
+	"github.com/mercereau/hydrolix-metrics-go/internal/sinks/prometheus"
 )
 
 var (

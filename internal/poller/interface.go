@@ -1,7 +1,7 @@
 package poller
 
 import (
-	"gitlab-master.nvidia.com/it/sre/cdn/observability/hydrolix-collector/internal/sinks"
+	"github.com/mercereau/hydrolix-metrics-go/internal/sinks"
 )
 
 type Poller interface {
