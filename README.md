@@ -5,7 +5,7 @@ Minimal, production-ready CDN Metrics Collector using Cobra.
 ## Quickstart
 
 ```bash
-CLI for collecting CDN Metrics from Hydrolix and exporting them to various metric sinks.
+CLI for collecting metrics from Hydrolix and exporting them to various metric sinks.
 
 Usage:
   hydrolix-collector [flags]
