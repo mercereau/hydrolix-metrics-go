@@ -45,8 +45,10 @@ var (
 	ddBatchSize   int
 	ddInitBackoff int
 	ddMaxRetries  int
-	concurrency   uint16
-	promPort      string
+	concurrency        uint16
+	offsetStartMinutes int
+	offsetEndMinutes   int
+	promPort           string
 	promPath      string
 	otelEndpoint  string
 	sinx          []string
@@ -64,6 +66,8 @@ func init() {
 	rootCmd.PersistentFlags().Int32VarP(&polling, "interval", "i", 15, "polling interval in seconds for the exporter, how frequently the exporter polls")
 	rootCmd.PersistentFlags().Int32VarP(&flush, "flush", "f", 15, "how frequently the metric sinks should export metrics in seconds")
 	rootCmd.PersistentFlags().Uint16VarP(&concurrency, "concurrency", "C", 1, "concurrency level for the exporter, how many simultaneous requests to make")
+	rootCmd.PersistentFlags().IntVar(&offsetStartMinutes, "offset-start-minutes", 6, "how many minutes back the query window starts")
+	rootCmd.PersistentFlags().IntVar(&offsetEndMinutes, "offset-end-minutes", 1, "lag offset in minutes for the query window end")
 
 	rootCmd.PersistentFlags().StringSliceVarP(&sinx, "sink", "S", nil, "metrics sinks to enable, options: datadog, prometheus, otel")
 
@@ -182,7 +186,9 @@ func RunHydrolixCollector() {
 	slog.Info("Starting Hydrolix Poller...")
 	// Configure Hydrolix client
 	hops := hydrolix.HydrolixOpts{
-		IntervalSeconds: time.Duration(polling) * time.Second,
+		IntervalSeconds:    time.Duration(polling) * time.Second,
+		OffsetStartMinutes: offsetStartMinutes,
+		OffsetEndMinutes:   offsetEndMinutes,
 	}
 
 	// Create Hydrolix client with Sinks

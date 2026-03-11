@@ -24,6 +24,10 @@ type Client struct {
 	opts       HydrolixOpts
 	httpClient *http.Client
 
+	sqlEdgeRequests string
+	sqlQuantiles    string
+	sqlErrors       string
+
 	mu      sync.RWMutex
 	closeCh chan struct{}
 	closed  bool
@@ -33,11 +37,13 @@ type Client struct {
 }
 
 type HydrolixOpts struct {
-	Host            string
-	Username        string
-	Password        string
-	Token           string
-	IntervalSeconds time.Duration // Polling interval duration (e.g., 15 * time.Second)
+	Host               string
+	Username           string
+	Password           string
+	Token              string
+	IntervalSeconds    time.Duration // Polling interval duration (e.g., 15 * time.Second)
+	OffsetStartMinutes int           // How far back the query window starts (default 6)
+	OffsetEndMinutes   int           // Lag offset for the query window end (default 1)
 }
 
 type loginRequest struct {
@@ -49,15 +55,24 @@ type loginResponse struct {
 }
 
 func New(name string, o HydrolixOpts, ms ...sinks.MetricSink) *Client {
+	if o.OffsetStartMinutes == 0 {
+		o.OffsetStartMinutes = 6
+	}
+	if o.OffsetEndMinutes == 0 {
+		o.OffsetEndMinutes = 1
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	c := &Client{
-		name:       name,
-		opts:       o,
-		closeCh:    make(chan struct{}),
-		sinks:      ms,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
-		ctx:        ctx,
-		cancel:     cancel,
+		name:            name,
+		opts:            o,
+		closeCh:         make(chan struct{}),
+		sinks:           ms,
+		httpClient:      &http.Client{Timeout: 30 * time.Second},
+		ctx:             ctx,
+		cancel:          cancel,
+		sqlEdgeRequests: fmt.Sprintf(SQLAkamaiEdgeRequests, o.OffsetStartMinutes, o.OffsetEndMinutes),
+		sqlQuantiles:    fmt.Sprintf(SQLAkamaiQuantiles, o.OffsetStartMinutes, o.OffsetEndMinutes),
+		sqlErrors:       fmt.Sprintf(SQLAkamaiErrors, o.OffsetStartMinutes, o.OffsetEndMinutes),
 	}
 	c.selfSink = c.sinks.WithTags(sinks.Tags{"component": "hydrolix-collector"})
 	if o.Username != "" && o.Password != "" && o.Host != "" {
@@ -293,7 +308,7 @@ func (c *Client) PollAkamaiEdgeRequests() {
 
 	slog.Debug("Polling Akamai Edge Requests data")
 	var r AkamaiEdgeRequestsResponse
-	if err := c.QueryHydrolix(&r, FormattedSQLAkamaiEdgeRequests); err != nil {
+	if err := c.QueryHydrolix(&r, c.sqlEdgeRequests); err != nil {
 		slog.Error("Failed to query Akamai edge requests", "error", err)
 		c.selfSink.Inc("hydrolix.collector.poll", "total", 1, sinks.MergeTags(pollTags, sinks.Tags{"status": "error"}))
 		return
@@ -363,7 +378,7 @@ func (c *Client) PollAkamaiErrors() {
 
 	slog.Debug("Polling Akamai Errors data")
 	var r AkamaiErrorsResponse
-	if err := c.QueryHydrolix(&r, FormattedSQLAkamaiErrors); err != nil {
+	if err := c.QueryHydrolix(&r, c.sqlErrors); err != nil {
 		slog.Error("Failed to query Akamai errors", "error", err)
 		c.selfSink.Inc("hydrolix.collector.poll", "total", 1, sinks.MergeTags(pollTags, sinks.Tags{"status": "error"}))
 		return
@@ -427,7 +442,7 @@ func (c *Client) PollAkamaiQuantiles() {
 
 	slog.Debug("Polling Akamai Quantiles data")
 	var r AkamaiEdgeQuantilesResponse
-	if err := c.QueryHydrolix(&r, FormattedSQLAkamaiQuantiles); err != nil {
+	if err := c.QueryHydrolix(&r, c.sqlQuantiles); err != nil {
 		slog.Error("Failed to query Akamai quantiles", "error", err)
 		c.selfSink.Inc("hydrolix.collector.poll", "total", 1, sinks.MergeTags(pollTags, sinks.Tags{"status": "error"}))
 		return
