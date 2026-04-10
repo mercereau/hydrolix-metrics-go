@@ -2,7 +2,7 @@
 
 ## High-Level Overview
 
-The collector polls Hydrolix for Akamai CDN log data, transforms it into pre-aggregated time-series metrics, and fans them out to one or more metric sinks (Datadog, Prometheus, OpenTelemetry).
+The collector polls Hydrolix for log data, transforms it into pre-aggregated time-series metrics, and fans them out to one or more metric sinks (Datadog, Prometheus, OpenTelemetry).
 
 ```mermaid
 flowchart TB
@@ -125,7 +125,7 @@ Each tick fires three parallel SQL queries against a sliding 5-minute window off
   Query window: [now - 6min, now - 1min]
 ```
 
-The 1-minute lag accommodates Akamai's log delivery SLA (95% within 30s) plus Hydrolix indexing time.
+The 1-minute lag accommodates log delivery SLA (95% within 30s) plus Hydrolix indexing time.
 
 ## Datadog Sink Pipeline
 
