@@ -18,6 +18,7 @@ import (
 	"github.com/mercereau/hydrolix-metrics-go/internal/sinks/datadog"
 	"github.com/mercereau/hydrolix-metrics-go/internal/sinks/otel"
 	"github.com/mercereau/hydrolix-metrics-go/internal/sinks/prometheus"
+	"github.com/mercereau/hydrolix-metrics-go/internal/sinks/statsd"
 )
 
 var (
@@ -36,23 +37,24 @@ var (
 )
 
 var (
-	namespace     string
-	subsystem     string
-	environment   string
-	polling       int32
-	flush         int32
-	ddQueueSize   int
-	ddBatchSize   int
-	ddInitBackoff int
-	ddMaxRetries  int
+	namespace          string
+	subsystem          string
+	environment        string
+	polling            int32
+	flush              int32
+	ddQueueSize        int
+	ddBatchSize        int
+	ddInitBackoff      int
+	ddMaxRetries       int
 	concurrency        uint16
 	offsetStartMinutes int
 	offsetEndMinutes   int
 	promPort           string
-	promPath      string
-	otelEndpoint  string
-	sinx          []string
-	healthz       string
+	promPath           string
+	otelEndpoint       string
+	statsdAddr         string
+	sinx               []string
+	healthz            string
 
 	metricsinks []sinks.MetricSink
 )
@@ -60,26 +62,29 @@ var (
 func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable verbose output")
 
-	rootCmd.PersistentFlags().StringVarP(&namespace, "namespace", "n", "", "override metric namespace, default uses command")
-	rootCmd.PersistentFlags().StringVarP(&subsystem, "subsystem", "s", "exporter", "provide a subsystem for the namespace")
-	rootCmd.PersistentFlags().StringVarP(&environment, "environment", "e", "dev", "environment that the exporter runs in")
-	rootCmd.PersistentFlags().Int32VarP(&polling, "interval", "i", 15, "polling interval in seconds for the exporter, how frequently the exporter polls")
+	rootCmd.PersistentFlags().StringVarP(&namespace, "namespace", "n", "", "override metric namespace, default uses hydrolix, e.g., {namespace}.{subsystem}.{metric_name}")
+	rootCmd.PersistentFlags().StringVarP(&subsystem, "subsystem", "s", "exporter", "provide a subsystem for the namespace, e.g., {namespace}.{subsystem}.{metric_name}")
+	rootCmd.PersistentFlags().StringVarP(&environment, "environment", "e", "dev", "environment that the exporter runs in as a metric label/tag")
+	rootCmd.PersistentFlags().Int32VarP(&polling, "interval", "i", 15, "polling interval in seconds for the exporter, how frequently the exporter polls hydrolix for new metrics")
 	rootCmd.PersistentFlags().Int32VarP(&flush, "flush", "f", 15, "how frequently the metric sinks should export metrics in seconds")
-	rootCmd.PersistentFlags().Uint16VarP(&concurrency, "concurrency", "C", 1, "concurrency level for the exporter, how many simultaneous requests to make")
+	rootCmd.PersistentFlags().Uint16VarP(&concurrency, "concurrency", "C", 1, "how many simultaneous sink operations to make, e.g., concurrent flushes to Datadog or OTel")
 	rootCmd.PersistentFlags().IntVar(&offsetStartMinutes, "offset-start-minutes", 6, "how many minutes back the query window starts")
 	rootCmd.PersistentFlags().IntVar(&offsetEndMinutes, "offset-end-minutes", 1, "lag offset in minutes for the query window end")
 
 	rootCmd.PersistentFlags().StringSliceVarP(&sinx, "sink", "S", nil, "metrics sinks to enable, options: datadog, prometheus, otel")
 
-	rootCmd.PersistentFlags().IntVarP(&ddBatchSize, "sink-datadog-batch-size", "b", 200, "[DataDog Sink] size of batch of custom metrics for a payload")
-	rootCmd.PersistentFlags().IntVarP(&ddQueueSize, "sink-datadog-queue-size", "q", 25, "[DataDog Sink] size of payload queue for custom metrics")
-	rootCmd.PersistentFlags().IntVarP(&ddInitBackoff, "sink-datadog-backoff", "B", 1, "[DataDog Sink] initial backoff time for retries")
+	rootCmd.PersistentFlags().IntVarP(&ddQueueSize, "sink-datadog-queue-size", "q", 25, "[DataDog Sink] size of custom metrics payload queue")
+	rootCmd.PersistentFlags().IntVarP(&ddBatchSize, "sink-datadog-batch-size", "b", 200, "[DataDog Sink] size of batch of custom metrics per payload")
+	rootCmd.PersistentFlags().IntVarP(&ddInitBackoff, "sink-datadog-backoff", "B", 1, "[DataDog Sink] initial backoff seconds for retries")
 	rootCmd.PersistentFlags().IntVarP(&ddMaxRetries, "sink-datadog-max-retries", "M", 3, "[DataDog Sink] max retries before failure to send custom metrics")
 
 	rootCmd.PersistentFlags().StringVarP(&promPort, "sink-prometheus-port", "p", ":2112", "[Prometheus Sink] port for prometheus endpoint")
 	rootCmd.PersistentFlags().StringVarP(&promPath, "sink-prometheus-path", "m", "/metrics", "[Prometheus Sink] path for endpoint")
 
+	// otel does not need backoff/retry configuration since the OTel SDK handles this internally, but we do need an endpoint to send to and an export interval
 	rootCmd.PersistentFlags().StringVarP(&otelEndpoint, "sink-otel-endpoint", "o", "", "[OpenTelemetry Sink] comma-separated list of host:port for endpoint, e.g., localhost:4317")
+
+	rootCmd.PersistentFlags().StringVarP(&statsdAddr, "sink-statsd-addr", "d", "", "[StatsD Sink] comma-separated list of host:port for StatsD daemons, e.g., localhost:8125,remote:8125")
 
 	// add a healthcheck persisntent flag
 	rootCmd.PersistentFlags().StringVarP(&healthz, "healthz", "", "/healthz", "healthcheck endpoint path")
@@ -172,6 +177,20 @@ func createMetricSinks() {
 			})
 			metricsinks = append(metricsinks, osink)
 			slog.Info("configured otel sink", "endpoint", endpoint, "export_interval", time.Duration(flush)*time.Second)
+		}
+	}
+
+	if slices.Contains(sinx, "statsd") && statsdAddr != "" {
+		for addr := range strings.SplitSeq(statsdAddr, ",") {
+			addr = strings.TrimSpace(addr)
+			ss := statsd.NewSink(statsd.StatsdOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Addr:      addr,
+				BaseTags:  map[string]string{"environment": environment},
+			})
+			metricsinks = append(metricsinks, ss)
+			slog.Info("configured statsd sink", "addr", addr)
 		}
 	}
 

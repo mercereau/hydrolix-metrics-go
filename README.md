@@ -24,13 +24,14 @@ Flags:
   -n, --namespace string               override metric namespace, default uses command
       --offset-end-minutes int         lag offset in minutes for the query window end (default 1)
       --offset-start-minutes int       how many minutes back the query window starts (default 6)
-  -S, --sink strings                   metrics sinks to enable, options: datadog, prometheus, otel
+  -S, --sink strings                   metrics sinks to enable, options: datadog, prometheus, otel, statsd
   -B, --sink-datadog-backoff int       [DataDog Sink] initial backoff time for retries (default 1)
   -b, --sink-datadog-batch-size int    [DataDog Sink] size of batch of custom metrics for a payload (default 200)
   -M, --sink-datadog-max-retries int   [DataDog Sink] max retries before failure to send custom metrics (default 3)
   -q, --sink-datadog-queue-size int    [DataDog Sink] size of payload queue for custom metrics (default 25)
   -o, --sink-otel-endpoint string      [OpenTelemetry Sink] comma-separated list of host:port for endpoint
   -m, --sink-prometheus-path string    [Prometheus Sink] path for endpoint (default "/metrics")
+  -d, --sink-statsd-addr string        [StatsD Sink] comma-separated list of host:port for StatsD daemons
   -p, --sink-prometheus-port string    [Prometheus Sink] port for prometheus endpoint (default ":2112")
   -s, --subsystem string               provide a subsystem for the namespace (default "exporter")
   -v, --verbose                        enable verbose output
