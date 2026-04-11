@@ -11,6 +11,7 @@ flowchart TB
         DD[Datadog API]
         PROM_SC[Prometheus Scraper]
         OTEL_COL[OTel Collector]
+        STATSD[StatsD Daemon]
     end
 
     subgraph CLI["Cobra CLI (cmd/root.go)"]
@@ -32,6 +33,7 @@ flowchart TB
         DS[Datadog Sink]
         PS[Prometheus Sink]
         OS[OTel Sink]
+        SS[StatsD Sink]
         NOP[Nop Sink]
     end
 
@@ -45,10 +47,11 @@ flowchart TB
 
     TOKEN -->|"hourly"| HDX
 
-    IF --> DS & PS & OS
+    IF --> DS & PS & OS & SS
     DS -->|"HTTP POST"| DD
     PS -->|"HTTP /metrics"| PROM_SC
     OS -->|"gRPC OTLP"| OTEL_COL
+    SS -->|"UDP"| STATSD
 ```
 
 ## Sink Topology
@@ -58,6 +61,7 @@ Each sink has a different fan-out model driven by how its downstream ecosystem h
 - **Datadog** -- A single sink instance pushes to one Datadog org, providing a centralized, curated source of truth for CDN metrics. Multi-org distribution is handled downstream via Datadog's [Cross-Org Metric Sharing](https://docs.datadoghq.com/metrics/guide/cross-org-metrics/), so the collector doesn't need to manage multiple API keys or endpoints.
 - **Prometheus** -- A single HTTP endpoint exposes `/metrics`. Any number of Prometheus instances can scrape it independently, and Prometheus natively supports [federation](https://prometheus.io/docs/prometheus/latest/federation/) so a single scrape can be distributed across multiple instances. No need for multiple sink instances -- federation is inherent to the pull model.
 - **OpenTelemetry** -- Supports multiple collector endpoints via comma-separated `--sink-otel-endpoint` values. Each endpoint gets its own sink instance. This was straightforward to implement since each OTel sink is self-contained, and it's useful when pushing to collectors in different environments or regions.
+- **StatsD** -- Supports multiple daemon endpoints via comma-separated `--sink-statsd-addr` values, each getting its own sink instance. Uses DogStatsD wire format over UDP, which is backwards-compatible with plain StatsD daemons (tags are ignored by daemons that don't support them). Fire-and-forget over UDP -- no buffering, batching, or retry needed.
 
 ## Concurrency Model
 
@@ -103,8 +107,12 @@ flowchart LR
         CL["goroutine: cleanupGaugePrev<br/>(every 5 min)"]
     end
 
+    subgraph statsdsink["StatsD Sink"]
+        UDP["Fire-and-forget UDP<br/>(no goroutines)"]
+    end
+
     M4 -.->|"ctx.Done()"| G1 & G2 & P1 & P2 & P3
-    M4 -.->|"sink.Stop()"| C1 & CN & S1 & HTTP & PR & CL
+    M4 -.->|"sink.Stop()"| C1 & CN & S1 & HTTP & PR & CL & UDP
 ```
 
 ### Why Concurrency Matters
@@ -128,6 +136,7 @@ A fully synchronous version would need to query Hydrolix sequentially (3x latenc
 | Datadog sender | Single consumer | 1 | Channel |
 | Prometheus | HTTP server | 1 | `sync.Mutex` on registry |
 | OTel | Periodic reader + cleanup | 2 | `sync.RWMutex` on gauge state |
+| StatsD | Fire-and-forget UDP | 0 | `sync.RWMutex` on connection |
 
 ### Query Window
 

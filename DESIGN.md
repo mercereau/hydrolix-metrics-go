@@ -43,7 +43,7 @@ Go was chosen for its ability to compile to a single binary that can be built an
 
 ## Sink Abstraction
 
-The `MetricSink` interface allows multiple sinks (Prometheus, Datadog, OpenTelemetry) to run simultaneously, receiving identical time-series data. This serves the "single pane of glass" problem in reverse: not everyone has access to the same observability platform. By emitting to multiple sinks at once, no matter which system you're looking through, you have visibility to the same view.
+The `MetricSink` interface allows multiple sinks (Prometheus, Datadog, OpenTelemetry, StatsD) to run simultaneously, receiving identical time-series data. This serves the "single pane of glass" problem in reverse: not everyone has access to the same observability platform. By emitting to multiple sinks at once, no matter which system you're looking through, you have visibility to the same view.
 
 ## Cobra CLI
 
