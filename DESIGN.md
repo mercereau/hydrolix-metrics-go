@@ -80,6 +80,16 @@ Uses the standard library's `log/slog` for structured logging. No third-party lo
 
 Hydrolix credentials are read from environment variables (`HDX_TOKEN`, `HDX_HOST`, etc.) to align with internal tooling conventions. Tokens can also be passed via CLI flags for flexibility.
 
+## Single Instance, Not a Cluster
+
+The collector runs as a single instance by design. It fires 3 SQL queries every 15 seconds -- Hydrolix does the heavy aggregation, so the collector itself is lightweight with nothing compute-intensive to distribute.
+
+Running multiple instances without coordination causes problems: duplicate queries hit Hydrolix unnecessarily, Datadog and OTel receive double-counted metrics, and Prometheus gets confused by multiple scrape targets exposing identical series.
+
+The 5-minute backfill window provides natural resilience. If the instance restarts, the next tick re-queries the same window and fills the gap. For any outage under 5 minutes, no data is lost. A single-replica Kubernetes Deployment with health checks and a restart policy is sufficient -- the backfill window makes restarts self-healing.
+
+If zero-gap metric continuity becomes a requirement (e.g., metrics drive paging alerts with tight SLOs), active/standby with a Kubernetes Lease for leader election would be the lightest-weight option. This has not been built because the need is not yet concrete, and it adds real operational complexity (coordination infrastructure, split-brain edge cases) for a service that recovers naturally in under a minute.
+
 ## ldflags Versioning
 
 Version, commit, and date are injected at build time via ldflags rather than using Go's `debug.BuildInfo`. This allows git branch information to be embedded directly into the release version string.
