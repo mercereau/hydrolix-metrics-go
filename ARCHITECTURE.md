@@ -99,6 +99,16 @@ flowchart LR
     M4 -.->|"sink.Stop()"| C1 & CN & S1 & HTTP & PR & CL
 ```
 
+### Why Concurrency Matters
+
+**Parallel query execution (fan-out per tick)** -- The three SQL queries hit Hydrolix independently. Running them concurrently means the tick duration is bounded by the *slowest* query, not the *sum* of all three. With a 15-second polling interval, this is critical; for example, if each query takes 3-5 seconds, sequential execution could consume the entire tick window or exceed it.
+
+**Non-blocking metric delivery (Datadog pipeline)** -- The channel-based pipeline decouples the poller from Datadog API latency. Without it, a slow or failing POST would stall the poller, causing missed polling windows. Instead, `submitMetric()` drops rather than blocks, collectors batch independently of the poller's pace, and the sender handles retries without affecting anything upstream. A Datadog outage doesn't degrade data collection -- the poller keeps running, and since each tick re-queries the same 5-minute window, dropped metrics during a brief outage are self-healing on the next successful tick.
+
+**Token refresh without interruption** -- The dedicated `refreshToken()` goroutine runs on its own 1-hour ticker, avoiding authentication latency in the hot path. The `sync.RWMutex` on the token field lets queries read concurrently while refresh takes an exclusive write lock only momentarily.
+
+A fully synchronous version would need to query Hydrolix sequentially (3x latency per tick), block on every Datadog POST (adding API latency to each tick), and refresh tokens inline (risking timeouts during queries). At a 15-second poll interval with potentially hundreds of metric series, the pipeline would fall behind almost immediately.
+
 ### Concurrency Summary
 
 | Component | Pattern | Goroutines | Coordination |
