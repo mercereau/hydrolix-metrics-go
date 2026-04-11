@@ -60,14 +60,6 @@ make test
 make build
 ```
 
-## Build and Run the Dockerfile
-
-```bash
-make docker-login
-make docker-build
-make docker-run
-```
-
 ## Playground - Docker Compose
 
 Spins up the collector (prometheus sink) + Prometheus + Grafana:
