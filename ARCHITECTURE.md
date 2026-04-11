@@ -51,6 +51,14 @@ flowchart TB
     OS -->|"gRPC OTLP"| OTEL_COL
 ```
 
+## Sink Topology
+
+Each sink has a different fan-out model driven by how its downstream ecosystem handles federation:
+
+- **Datadog** -- A single sink instance pushes to one Datadog org, providing a centralized, curated source of truth for CDN metrics. Multi-org distribution is handled downstream via Datadog's [Cross-Org Metric Sharing](https://docs.datadoghq.com/metrics/guide/cross-org-metrics/), so the collector doesn't need to manage multiple API keys or endpoints.
+- **Prometheus** -- A single HTTP endpoint exposes `/metrics`. Any number of Prometheus instances can scrape it independently, and Prometheus natively supports [federation](https://prometheus.io/docs/prometheus/latest/federation/) so a single scrape can be distributed across multiple instances. No need for multiple sink instances -- federation is inherent to the pull model.
+- **OpenTelemetry** -- Supports multiple collector endpoints via comma-separated `--sink-otel-endpoint` values. Each endpoint gets its own sink instance. This was straightforward to implement since each OTel sink is self-contained, and it's useful when pushing to collectors in different environments or regions.
+
 ## Concurrency Model
 
 Every goroutine in the system is tracked by a `sync.WaitGroup` and cancellable via `context.WithCancel`, enabling graceful shutdown with a 10-second timeout.
