@@ -1,0 +1,112 @@
+defaults:
+  offset_start_minutes: 6
+  offset_end_minutes: 1
+  tags:
+    cdn: akamai
+    source: hydrolix
+
+queries:
+  - name: akamai_edge_requests
+    sql_file: queries/akamai/edge_requests.sql
+    timestamp_column: time
+    dimensions:
+      - column: hostname
+        tag: hostname
+      - column: status_class
+        tag: status_class
+      - column: cache_status
+        tag: cache_status
+        format: "%d"
+      - column: cacheability
+        tag: cacheability
+        format: "%d"
+    metrics:
+      - column: edge_requests_total
+        name: cdn.delivery.edge
+        unit: request
+        type: gauge
+      - column: edge_bytes_total
+        name: cdn.delivery.edge
+        unit: byte
+        type: gauge
+      - column: origin_requests_total
+        name: cdn.delivery.origin
+        unit: request
+        type: gauge
+      - column: origin_bytes_total
+        name: cdn.delivery.origin
+        unit: byte
+        type: gauge
+
+  - name: akamai_quantiles
+    sql_file: queries/akamai/quantiles.sql
+    timestamp_column: time
+    dimensions:
+      - column: hostname
+        tag: hostname
+      - column: status_class
+        tag: status_class
+      - column: cache_status
+        tag: cache_status
+        format: "%d"
+    metrics:
+      - column: first_byte_seconds
+        name: cdn.performance.edge.firstbyte
+        unit: second
+        type: gauge
+        array_tag: percentile
+        array_values: [p25, p50, p75, p90, p95, p99]
+      - column: tls_seconds
+        name: cdn.performance.edge.tls
+        unit: second
+        type: gauge
+        array_tag: percentile
+        array_values: [p25, p50, p75, p90, p95, p99]
+      - column: transfer_seconds
+        name: cdn.performance.edge.transfer
+        unit: second
+        type: gauge
+        array_tag: percentile
+        array_values: [p25, p50, p75, p90, p95, p99]
+      - column: download_seconds
+        name: cdn.performance.edge.download
+        unit: second
+        type: gauge
+        array_tag: percentile
+        array_values: [p25, p50, p75, p90, p95, p99]
+      - column: turnaround_seconds
+        name: cdn.performance.edge.turnaround
+        unit: second
+        type: gauge
+        array_tag: percentile
+        array_values: [p25, p50, p75, p90, p95, p99]
+      - column: overhead_bytes
+        name: cdn.performance.edge.overhead
+        unit: byte
+        type: gauge
+        array_tag: percentile
+        array_values: [p25, p50, p75, p90, p95, p99]
+
+  - name: akamai_errors
+    sql_file: queries/akamai/errors.sql
+    timestamp_column: time
+    dimensions:
+      - column: hostname
+        tag: hostname
+      - column: status_class
+        tag: status_class
+      - column: status_code
+        tag: status_code
+        format: "%d"
+      - column: cache_status
+        tag: cache_status
+        format: "%d"
+    metrics:
+      - column: edge_errors
+        name: cdn.delivery.edge
+        unit: error
+        type: gauge
+      - column: origin_errors
+        name: cdn.delivery.origin
+        unit: error
+        type: gauge
