@@ -22,8 +22,9 @@ Flags:
   -h, --help                           help for hydrolix-collector
   -i, --interval int32                 polling interval in seconds for the exporter, how frequently the exporter polls (default 15)
   -n, --namespace string               override metric namespace, default uses command
-      --offset-end-minutes int         lag offset in minutes for the query window end (default 1)
-      --offset-start-minutes int       how many minutes back the query window starts (default 6)
+      --offset-end-minutes int         override lag offset in minutes for the query window end (0 = use config default)
+      --offset-start-minutes int       override how many minutes back the query window starts (0 = use config default)
+  -c, --config string                  path to queries.yaml config file (default: embedded config)
   -S, --sink strings                   metrics sinks to enable, options: datadog, prometheus, otel, statsd
   -B, --sink-datadog-backoff int       [DataDog Sink] initial backoff time for retries (default 1)
   -b, --sink-datadog-batch-size int    [DataDog Sink] size of batch of custom metrics for a payload (default 200)
@@ -77,12 +78,22 @@ docker compose up
 | Grafana              | http://localhost:3000   |
 | Collector metrics    | http://localhost:2112/metrics |
 
+## Query Configuration
+
+Queries are defined in a YAML config file (`queries/queries.yaml`). The embedded default config ships with Akamai CDN queries, but you can provide your own via `--config`:
+
+```bash
+hydrolix-collector --config ./my-queries.yaml --sink prometheus
+```
+
+To add a new query, create a `.sql` file and add an entry to the YAML -- no Go code changes required. See `queries/queries.yaml` for the full schema including global/per-query tags, offset overrides, dimension mappings, and array column support for percentile metrics.
+
 ## Features
+- YAML-driven query configuration -- add queries without writing Go
 - Cobra command structure (`root`, `version`)
 - Verbose logging via `log/slog`
 - ldflags-based versioning (version, commit, date)
 - Makefile with build/test/format/vet
-- Tiny test to keep `go test ./...` green
 
 ## Releasing
 TODO: add Goreleaser, CI, etc.

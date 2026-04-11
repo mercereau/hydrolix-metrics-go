@@ -2,7 +2,7 @@
 
 ## High-Level Overview
 
-The collector polls Hydrolix for log data, transforms it into pre-aggregated time-series metrics, and fans them out to one or more metric sinks (Datadog, Prometheus, OpenTelemetry).
+The collector polls Hydrolix for log data, transforms it into pre-aggregated time-series metrics, and fans them out to one or more metric sinks (Datadog, Prometheus, OpenTelemetry, StatsD). Queries are defined declaratively in a YAML config file -- no Go code changes are needed to add, modify, or remove queries.
 
 ```mermaid
 flowchart TB
@@ -51,6 +51,29 @@ flowchart TB
     OS -->|"gRPC OTLP"| OTEL_COL
     SS -->|"UDP"| STATSD
 ```
+
+## Query Configuration
+
+Queries are defined in `queries/queries.yaml` (embedded in the binary, overridable via `--config`). The config drives the entire data pipeline with no Go code changes needed.
+
+```
+queries/
+    queries.yaml              # Query definitions, tags, offsets
+    queries/
+        akamai/
+            edge_requests.sql  # SQL with {{.OffsetStart}} / {{.OffsetEnd}} templates
+            quantiles.sql
+            errors.sql
+```
+
+Each query entry defines:
+- **SQL** -- inline or referenced via `sql_file`, with Go template placeholders for the sliding window offsets
+- **Dimensions** -- columns mapped to metric tags, with optional format strings for numeric values
+- **Metrics** -- columns mapped to metric emissions (gauge, counter, rate), with array support for percentile columns
+- **Tags** -- per-query tags merged on top of global default tags
+- **Offsets** -- per-query overrides for the query window, falling back to global defaults
+
+At startup, the config loader resolves SQL file references, renders templates with offset values, and produces fully baked SQL strings. The generic poller then fans out all configured queries concurrently, unmarshals each response into `map[string]any`, and emits metrics according to the column mappings.
 
 ## Sink Topology
 

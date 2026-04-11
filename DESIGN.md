@@ -56,9 +56,17 @@ The collector uses a configurable polling model with a default 5-minute query wi
 - **5-minute window**: Allows for data backfill in metric sinks that support backfilled time-series. It also accommodates typical vendor SLAs for real-time log streaming to obtain 100% of raw log data and populate summary tables.
 - **1-minute end offset**: Accounts for vendor SLAs of 95% of logs delivered within 30 seconds of log creation, plus a 30-second buffer for data indexing and ETL jobs to generate data in summary tables.
 
+## YAML-Driven Query Configuration
+
+Queries are defined declaratively in a YAML config file rather than in Go code. Each query entry specifies a SQL file (with Go template placeholders for offsets), dimension-to-tag mappings, and metric column definitions. Array columns (e.g., percentile arrays) are supported via `array_tag` / `array_values` fields.
+
+This means adding a new data source (a different CDN, a different Hydrolix table) requires only a SQL file and a YAML entry -- no Go structs, no new `Poll*` functions, no recompile. The binary ships with an embedded default config, but an external `--config` path allows customization without rebuilding.
+
+Tag precedence: YAML defaults > per-query tags > per-row dimensions > CLI base tags (e.g., `--environment`).
+
 ## Parallel Queries
 
-Each poll function runs a distinct SQL query to retrieve a specific data shape. All poll functions execute concurrently via a `sync.WaitGroup` fan-out, so additional queries can be added without increasing tick latency.
+Each query defined in the config runs as a distinct SQL request. All queries execute concurrently via a `sync.WaitGroup` fan-out, so additional queries can be added without increasing tick latency.
 
 ## Prometheus as Self-Sink
 
@@ -82,7 +90,7 @@ Hydrolix credentials are read from environment variables (`HDX_TOKEN`, `HDX_HOST
 
 ## Single Instance, Not a Cluster
 
-The collector runs as a single instance by design. It fires 3 SQL queries every 15 seconds -- Hydrolix does the heavy aggregation, so the collector itself is lightweight with nothing compute-intensive to distribute.
+The collector runs as a single instance by design. It fires N SQL queries (defined in config) every polling interval -- Hydrolix does the heavy aggregation, so the collector itself is lightweight with nothing compute-intensive to distribute.
 
 Running multiple instances without coordination causes problems: duplicate queries hit Hydrolix unnecessarily, Datadog and OTel receive double-counted metrics, and Prometheus gets confused by multiple scrape targets exposing identical series.
 

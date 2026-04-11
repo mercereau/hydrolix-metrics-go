@@ -1,14 +1,5 @@
 package hydrolix
 
-type MetricExtractor struct {
-	Namespace string
-	Subsystem string
-
-	Query string
-	Tags  []string
-	KV    map[string]string
-}
-
 // FieldMeta describes the schema items listed in "meta".
 type FieldMeta struct {
 	Name string `json:"name"`

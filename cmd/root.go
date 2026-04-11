@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"slices"
@@ -53,11 +54,18 @@ var (
 	promPath           string
 	otelEndpoint       string
 	statsdAddr         string
+	configPath         string
 	sinx               []string
 	healthz            string
 
 	metricsinks []sinks.MetricSink
+	embeddedFS  fs.FS
 )
+
+// SetConfigsFS sets the embedded configs filesystem, called from main before Execute.
+func SetQueriesFS(f fs.FS) {
+	embeddedFS = f
+}
 
 func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable verbose output")
@@ -68,10 +76,12 @@ func init() {
 	rootCmd.PersistentFlags().Int32VarP(&polling, "interval", "i", 15, "polling interval in seconds for the exporter, how frequently the exporter polls hydrolix for new metrics")
 	rootCmd.PersistentFlags().Int32VarP(&flush, "flush", "f", 15, "how frequently the metric sinks should export metrics in seconds")
 	rootCmd.PersistentFlags().Uint16VarP(&concurrency, "concurrency", "C", 1, "how many simultaneous sink operations to make, e.g., concurrent flushes to Datadog or OTel")
-	rootCmd.PersistentFlags().IntVar(&offsetStartMinutes, "offset-start-minutes", 6, "how many minutes back the query window starts")
-	rootCmd.PersistentFlags().IntVar(&offsetEndMinutes, "offset-end-minutes", 1, "lag offset in minutes for the query window end")
+	rootCmd.PersistentFlags().IntVar(&offsetStartMinutes, "offset-start-minutes", 0, "override how many minutes back the query window starts (0 = use config default)")
+	rootCmd.PersistentFlags().IntVar(&offsetEndMinutes, "offset-end-minutes", 0, "override lag offset in minutes for the query window end (0 = use config default)")
 
-	rootCmd.PersistentFlags().StringSliceVarP(&sinx, "sink", "S", nil, "metrics sinks to enable, options: datadog, prometheus, otel")
+	rootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", "", "path to queries.yaml config file (default: embedded config)")
+
+	rootCmd.PersistentFlags().StringSliceVarP(&sinx, "sink", "S", nil, "metrics sinks to enable, options: datadog, prometheus, otel, statsd")
 
 	rootCmd.PersistentFlags().IntVarP(&ddQueueSize, "sink-datadog-queue-size", "q", 25, "[DataDog Sink] size of custom metrics payload queue")
 	rootCmd.PersistentFlags().IntVarP(&ddBatchSize, "sink-datadog-batch-size", "b", 200, "[DataDog Sink] size of batch of custom metrics per payload")
@@ -208,6 +218,8 @@ func RunHydrolixCollector() {
 		IntervalSeconds:    time.Duration(polling) * time.Second,
 		OffsetStartMinutes: offsetStartMinutes,
 		OffsetEndMinutes:   offsetEndMinutes,
+		ConfigPath:         configPath,
+		EmbeddedFS:         embeddedFS,
 	}
 
 	// Create Hydrolix client with Sinks
