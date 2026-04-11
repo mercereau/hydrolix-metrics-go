@@ -56,9 +56,9 @@ The collector uses a configurable polling model with a default 5-minute query wi
 - **5-minute window**: Allows for data backfill in metric sinks that support backfilled time-series. It also accommodates typical vendor SLAs for real-time log streaming to obtain 100% of raw log data and populate summary tables.
 - **1-minute end offset**: Accounts for vendor SLAs of 95% of logs delivered within 30 seconds of log creation, plus a 30-second buffer for data indexing and ETL jobs to generate data in summary tables.
 
-## Three Parallel Queries
+## Parallel Queries
 
-Edge requests, quantiles, and errors are queried separately because each requires a distinct query to retrieve the specific data needed.
+Each poll function runs a distinct SQL query to retrieve a specific data shape. All poll functions execute concurrently via a `sync.WaitGroup` fan-out, so additional queries can be added without increasing tick latency.
 
 ## Prometheus as Self-Sink
 

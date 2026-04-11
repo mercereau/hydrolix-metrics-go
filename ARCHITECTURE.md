@@ -22,9 +22,7 @@ flowchart TB
 
     subgraph Poller["Hydrolix Poller (internal/poller/hydrolix)"]
         TICKER[Ticker Loop<br/>default 15s]
-        Q1[PollAkamaiEdgeRequests]
-        Q2[PollAkamaiQuantiles]
-        Q3[PollAkamaiErrors]
+        QN["Poll functions<br/>(N concurrent queries)"]
         TOKEN[Token Refresh<br/>goroutine]
     end
 
@@ -41,9 +39,9 @@ flowchart TB
     RUN -->|"go c.Start()"| TICKER
     SIG -->|"c.Stop()"| TICKER
 
-    TICKER -->|"every tick"| Q1 & Q2 & Q3
-    Q1 & Q2 & Q3 -->|SQL POST| HDX
-    Q1 & Q2 & Q3 -->|"WithTimestamp().Gauge/Inc"| IF
+    TICKER -->|"every tick"| QN
+    QN -->|SQL POST| HDX
+    QN -->|"WithTimestamp().Gauge/Inc"| IF
 
     TOKEN -->|"hourly"| HDX
 
@@ -85,9 +83,8 @@ flowchart LR
 
         subgraph FAN["Fan-out per tick (WaitGroup)"]
             direction LR
-            P1["goroutine: PollEdgeRequests"]
-            P2["goroutine: PollQuantiles"]
-            P3["goroutine: PollErrors"]
+            P1["goroutine: Poll #1"]
+            PN["goroutine: Poll #N"]
         end
     end
 
@@ -111,19 +108,19 @@ flowchart LR
         UDP["Fire-and-forget UDP<br/>(no goroutines)"]
     end
 
-    M4 -.->|"ctx.Done()"| G1 & G2 & P1 & P2 & P3
+    M4 -.->|"ctx.Done()"| G1 & G2 & P1 & PN
     M4 -.->|"sink.Stop()"| C1 & CN & S1 & HTTP & PR & CL & UDP
 ```
 
 ### Why Concurrency Matters
 
-**Parallel query execution (fan-out per tick)** -- The three SQL queries hit Hydrolix independently. Running them concurrently means the tick duration is bounded by the *slowest* query, not the *sum* of all three. With a 15-second polling interval, this is critical; for example, if each query takes 3-5 seconds, sequential execution could consume the entire tick window or exceed it.
+**Parallel query execution (fan-out per tick)** -- All poll functions hit Hydrolix independently. Running them concurrently means the tick duration is bounded by the *slowest* query, not the *sum* of all queries. With a 15-second polling interval, this is critical; for example, if each query takes 3-5 seconds, sequential execution could consume the entire tick window or exceed it. Additional poll functions can be added without increasing tick latency.
 
 **Non-blocking metric delivery (Datadog pipeline)** -- The channel-based pipeline decouples the poller from Datadog API latency. Without it, a slow or failing POST would stall the poller, causing missed polling windows. Instead, `submitMetric()` drops rather than blocks, collectors batch independently of the poller's pace, and the sender handles retries without affecting anything upstream. A Datadog outage doesn't degrade data collection -- the poller keeps running, and since each tick re-queries the same 5-minute window, dropped metrics during a brief outage are self-healing on the next successful tick.
 
 **Token refresh without interruption** -- The dedicated `refreshToken()` goroutine runs on its own 1-hour ticker, avoiding authentication latency in the hot path. The `sync.RWMutex` on the token field lets queries read concurrently while refresh takes an exclusive write lock only momentarily.
 
-A fully synchronous version would need to query Hydrolix sequentially (3x latency per tick), block on every Datadog POST (adding API latency to each tick), and refresh tokens inline (risking timeouts during queries). At a 15-second poll interval with potentially hundreds of metric series, the pipeline would fall behind almost immediately.
+A fully synchronous version would need to query Hydrolix sequentially (Nx latency per tick), block on every Datadog POST (adding API latency to each tick), and refresh tokens inline (risking timeouts during queries). At a 15-second poll interval with potentially hundreds of metric series, the pipeline would fall behind almost immediately.
 
 ### Concurrency Summary
 
@@ -131,7 +128,7 @@ A fully synchronous version would need to query Hydrolix sequentially (3x latenc
 |---|---|---|---|
 | Poller main loop | Ticker | 1 | `context.WithCancel` |
 | Token refresh | Ticker | 1 | `context.WithCancel`, `sync.RWMutex` on token |
-| Per-tick queries | Fan-out / fan-in | 3 (per tick) | `sync.WaitGroup` |
+| Per-tick queries | Fan-out / fan-in | N (per tick) | `sync.WaitGroup` |
 | Datadog collectors | Worker pool | N (configurable) | Channels, `sync.WaitGroup` |
 | Datadog sender | Single consumer | 1 | Channel |
 | Prometheus | HTTP server | 1 | `sync.Mutex` on registry |
@@ -140,7 +137,7 @@ A fully synchronous version would need to query Hydrolix sequentially (3x latenc
 
 ### Query Window
 
-Each tick fires three parallel SQL queries against a sliding 5-minute window offset from "now" to account for log ingestion lag:
+Each tick fires N parallel SQL queries against a sliding 5-minute window offset from "now" to account for log ingestion lag:
 
 ```
   wall clock
@@ -161,9 +158,8 @@ The Datadog sink uses a **3-stage buffered pipeline** with backpressure and retr
 ```mermaid
 flowchart TB
     subgraph Producers["Metric Producers (poller goroutines)"]
-        P1["PollEdgeRequests"]
-        P2["PollQuantiles"]
-        P3["PollErrors"]
+        P1["Poll #1"]
+        PN2["Poll #N"]
     end
 
     subgraph Stage1["Stage 1: Submit"]
@@ -189,7 +185,7 @@ flowchart TB
         FAIL["Increment<br/>send_failures<br/>(self-sink)"]
     end
 
-    P1 & P2 & P3 -->|".Gauge() / .Inc()"| SUB
+    P1 & PN2 -->|".Gauge() / .Inc()"| SUB
     SUB -->|"channel full"| DROP
     SUB -->|"send OK"| MCH
     MCH --> COL
