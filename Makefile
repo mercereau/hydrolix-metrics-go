@@ -44,5 +44,12 @@ run:
 clean:
 	rm -rf bin
 
-docker-up:
+docker-build:
+	docker build \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg COMMIT=$(GIT_COMMIT) \
+		--build-arg DATE=$(DATE) \
+		-t hydrolix-collector .
+
+docker-up: docker-build
 	docker compose up
