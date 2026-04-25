@@ -2,6 +2,8 @@
 
 A minimal, production-ready application for collecting data from Hydrolix and exporting to various time-series metric sinks.
 
+Inspiration for this project came from the development of a similar metric exporter that I wrote for Kafka and based on the Fitstar stats-collector.
+
 ## Quickstart
 
 ```bash
