@@ -101,11 +101,23 @@ func init() {
 
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
 		slog.SetDefault(logger.New(verbose))
-		namespace = strings.TrimSpace("hydrolix")
+		namespace = resolveNamespace(namespace)
 		normalizeSinks()
 		createMetricSinks()
 		return nil
 	}
+}
+
+// defaultNamespace is used when --namespace is not supplied.
+const defaultNamespace = "hydrolix"
+
+// resolveNamespace returns the namespace to use for metric names: the value
+// supplied via --namespace, or defaultNamespace when none was given.
+func resolveNamespace(flagValue string) string {
+	if trimmed := strings.TrimSpace(flagValue); trimmed != "" {
+		return trimmed
+	}
+	return defaultNamespace
 }
 
 // Execute runs the root command.
