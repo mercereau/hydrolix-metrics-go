@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -29,10 +30,14 @@ var (
 		Use:   "hydrolix-collector",
 		Short: "CLI for collecting CDN Metrics from Hydrolix",
 		Long:  "CLI for collecting CDN Metrics from Hydrolix and exporting them to various metric sinks.",
+		// Execute already reports the error, so don't let cobra print it twice.
+		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Flags parsed successfully, so anything from here on is a runtime
+			// failure rather than a usage error - no point printing the help text.
+			cmd.SilenceUsage = true
 			slog.Info("Running hydrolix-collector...")
-			RunHydrolixCollector()
-			return nil
+			return RunHydrolixCollector()
 		},
 	}
 )
@@ -223,7 +228,7 @@ func createMetricSinks() {
 	}
 }
 
-func RunHydrolixCollector() {
+func RunHydrolixCollector() error {
 	slog.Info("Starting Hydrolix Poller...")
 	// Configure Hydrolix client
 	hops := hydrolix.HydrolixOpts{
@@ -237,8 +242,7 @@ func RunHydrolixCollector() {
 	// Create Hydrolix client with Sinks
 	c := hydrolix.New("Hydrolix Client", hops, metricsinks...)
 	if c == nil {
-		slog.Error("Failed to create Hydrolix client - check authentication configuration")
-		return
+		return errors.New("failed to create Hydrolix client - check the query config and authentication settings")
 	}
 
 	// Start polling in background
@@ -253,4 +257,5 @@ func RunHydrolixCollector() {
 	slog.Info("Shutting down Hydrolix Poller...")
 	c.Stop()
 	slog.Info("Hydrolix Poller stopped")
+	return nil
 }
