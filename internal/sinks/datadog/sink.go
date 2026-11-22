@@ -35,7 +35,8 @@ type Sink struct {
 	payloadsCh      chan datadogV2.MetricPayload
 	stopSenderCh    chan bool
 	closed          bool
-	wg              sync.WaitGroup
+	collectorWG     sync.WaitGroup
+	senderWG        sync.WaitGroup
 }
 
 // datadogScoped is an immutable scoped view of a Sink with a fixed timestamp and base tags.
@@ -151,6 +152,11 @@ func (dd *Sink) Gauge(name string, unit string, value float64, tags metrics.Tags
 }
 
 func (dd *Sink) submitMetric(m datadogV2.MetricSeries) {
+	// Hold the read lock across both the closed check and the send: Stop sets
+	// closed and closes metricCh under the write lock, so a send can never race
+	// with the close. The send is non-blocking, so the lock is held only briefly.
+	dd.mu.RLock()
+	defer dd.mu.RUnlock()
 	if dd.closed {
 		return
 	}
@@ -200,10 +206,14 @@ func (dd *Sink) Stop() {
 
 	slog.Info("Stopping Datadog sink...")
 	dd.stopCollector()
+	// Wait for every collector to finish its final flush before stopping the
+	// sender: stopCollector only hands the signal to one collector, and a
+	// straggler flushing after the sender has drained would lose its payload.
+	dd.collectorWG.Wait()
 	slog.Info("Stopped collectors, now stopping sender...")
 	dd.stopSender()
 	slog.Info("Waiting for Datadog sink goroutines to finish...")
-	dd.wg.Wait()
+	dd.senderWG.Wait()
 	slog.Info("Datadog sink closed")
 	close(dd.metricCh)
 }
@@ -216,16 +226,13 @@ func (dd *Sink) stopCollector() {
 }
 
 func (dd *Sink) Start() {
-	dd.wg.Add(1)
-	go dd.runSender()
+	dd.senderWG.Go(dd.runSender)
 	for i := uint16(0); i < dd.opts.Concurrency; i++ {
-		dd.wg.Add(1)
-		go dd.runCollector()
+		dd.collectorWG.Go(dd.runCollector)
 	}
 }
 
 func (dd *Sink) runSender() {
-	defer dd.wg.Done()
 	for {
 		select {
 		case <-dd.stopSenderCh:
@@ -252,7 +259,6 @@ func (dd *Sink) stopSender() {
 }
 
 func (dd *Sink) runCollector() {
-	defer dd.wg.Done()
 	buffer := make([]datadogV2.MetricSeries, 0, dd.opts.BatchSize)
 	timer := time.NewTimer(dd.opts.FlushInterval)
 	for {
@@ -301,17 +307,11 @@ func (dd *Sink) flush(series []datadogV2.MetricSeries) {
 	}
 }
 
-var ErrSinkClosed = errors.New("sink closed")
-
+// queuePayload hands a payload to the sender. It is called only from the
+// collector goroutines, and Stop keeps the sender alive until every collector
+// has finished its final flush - so queueing during shutdown is safe, and
+// refusing here would drop whatever the collectors were still buffering.
 func (dd *Sink) queuePayload(p datadogV2.MetricPayload) error {
-	dd.mu.RLock()
-	closed := dd.closed
-	dd.mu.RUnlock()
-
-	if closed {
-		return ErrSinkClosed
-	}
-
 	select {
 	case dd.payloadsCh <- p:
 		return nil
