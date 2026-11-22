@@ -86,7 +86,7 @@ func loadFromEmbed(embeddedFS fs.FS) (*QueriesConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	return resolveConfig(cfg, embeddedFS, "queries")
+	return resolveConfig(cfg, embeddedFS, "queries", "")
 }
 
 func loadFromDisk(configPath string) (*QueriesConfig, error) {
@@ -99,7 +99,7 @@ func loadFromDisk(configPath string) (*QueriesConfig, error) {
 		return nil, err
 	}
 	baseDir := filepath.Dir(configPath)
-	return resolveConfig(cfg, os.DirFS(baseDir), ".")
+	return resolveConfig(cfg, os.DirFS(baseDir), ".", baseDir)
 }
 
 func parseConfig(data []byte) (*QueriesConfig, error) {
@@ -118,7 +118,9 @@ func parseConfig(data []byte) (*QueriesConfig, error) {
 }
 
 // resolveConfig resolves SQL file references and renders templates for each query.
-func resolveConfig(cfg *QueriesConfig, fsys fs.FS, baseDir string) (*QueriesConfig, error) {
+// root is the location fsys is anchored at, used only to report the full path in
+// error messages; it is empty when fsys is not backed by the filesystem.
+func resolveConfig(cfg *QueriesConfig, fsys fs.FS, baseDir, root string) (*QueriesConfig, error) {
 	for i := range cfg.Queries {
 		q := &cfg.Queries[i]
 
@@ -144,7 +146,8 @@ func resolveConfig(cfg *QueriesConfig, fsys fs.FS, baseDir string) (*QueriesConf
 			path := filepath.Join(baseDir, q.SQLFile)
 			data, err := fs.ReadFile(fsys, path)
 			if err != nil {
-				return nil, fmt.Errorf("query %q: read sql_file %s: %w", q.Name, q.SQLFile, err)
+				return nil, fmt.Errorf("query %q: read sql_file %q (resolved to %s, relative to the config file): %w",
+					q.Name, q.SQLFile, filepath.Join(root, path), err)
 			}
 			q.resolvedSQL = string(data)
 		} else {

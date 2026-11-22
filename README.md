@@ -90,6 +90,8 @@ hydrolix-collector --config ./my-queries.yaml --sink prometheus
 
 To add a new query, create a `.sql` file and add an entry to the YAML -- no Go code changes required. See `queries/queries.yaml` for the full schema including global/per-query tags, offset overrides, dimension mappings, and array column support for percentile metrics.
 
+Note that `sql_file` paths are resolved **relative to the config file's directory**, not the working directory. A config at `examples/prod/queries.yaml` referring to `sql_file: edge.sql` loads `examples/prod/edge.sql`, whatever directory you run the collector from.
+
 ## Features
 - YAML-driven query configuration -- add queries without writing Go
 - Cobra command structure (`root`, `version`)
